@@ -1,0 +1,47 @@
+diff --git a/src/tiny_agent/tiny_agent_tools.py b/src/tiny_agent/tiny_agent_tools.py
+index dd4ddba..b3cc3c4 100644
+--- a/src/tiny_agent/tiny_agent_tools.py
++++ b/src/tiny_agent/tiny_agent_tools.py
+@@ -555,7 +555,7 @@ def get_create_reminder_tool(computer: Computer) -> Tool:
+ 
+         return computer.reminders.create_reminder(
+             name=name,
+-            due_date=datetime.datetime.fromisoformat(due_date),
++            due_date=due_date_args,
+             notes=notes,
+             list_name=list_name,
+             priority=priority,
+diff --git a/src/tiny_agent/tools/reminders.py b/src/tiny_agent/tools/reminders.py
+index 8869f06..219439b 100644
+--- a/src/tiny_agent/tools/reminders.py
++++ b/src/tiny_agent/tools/reminders.py
+@@ -21,15 +21,24 @@ class Reminders:
+         if platform.system() != "Darwin":
+             return "This method is only supported on MacOS"
+ 
++        # Build dates numerically; AppleScript's date-string parser depends on locale.
++        date_setup = ""
++        due_date_script = ""
+         if due_date is not None:
+-            due_date_script = f''', due date:date "{due_date.strftime("%B %d, %Y")
+-                if all_day
+-                else due_date.strftime("%B %d, %Y %I:%M:%S %p")}"'''
+-        else:
+-            due_date_script = ""
++            seconds = 0 if all_day else due_date.hour * 3600 + due_date.minute * 60 + due_date.second
++            date_setup = f"""
++            set reminderDueDate to current date
++            set day of reminderDueDate to 1
++            set year of reminderDueDate to {due_date.year}
++            set month of reminderDueDate to {due_date.month}
++            set day of reminderDueDate to {due_date.day}
++            set time of reminderDueDate to {seconds}
++            """
++            due_date_script = ", due date:reminderDueDate"
+ 
+         notes = notes.replace('"', '\\"').replace("'", "’")
+         script = f"""
++        {date_setup}
+         tell application "{self.reminders_app}"
+             set listExists to false
+             set listName to "{list_name}"

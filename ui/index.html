@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TinyAgent</title>
+  <style>
+    :root { font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #202723; background: #f5f6f3; color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 840px; margin: 48px auto; padding: 0 24px 40px; }
+    header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .mark { width: 38px; height: 38px; background: #284c3f; color: white; border-radius: 11px; display: grid; place-items: center; font-weight: 700; }
+    h1 { font-size: 24px; line-height: 1.2; margin: 0; letter-spacing: -.6px; }
+    .subtitle { margin: 3px 0 0; color: #67736b; font-size: 13px; }
+    .badge { margin-left: auto; font-size: 12px; color: #47604f; background: #e7ede4; padding: 4px 10px; border-radius: 20px; }
+    .panel { background: #fff; border: 1px solid #dfe4dc; border-radius: 16px; padding: 24px; box-shadow: 0 3px 12px #233b2510; }
+    .model-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    label { font-size: 13px; font-weight: 600; }
+    select, button, textarea { font: inherit; }
+    select { border: 1px solid #d5ddd2; border-radius: 8px; padding: 8px 12px; background: white; max-width: 100%; }
+    textarea { width: 100%; min-height: 140px; margin-top: 8px; resize: vertical; border: 1px solid #d5ddd2; border-radius: 10px; padding: 14px; color: inherit; line-height: 1.6; }
+    :focus-visible { outline: 3px solid #b4cbbb; outline-offset: 2px; }
+    textarea:focus { border-color: #789b85; }
+    .hint { font-size: 12px; color: #707c72; margin: 8px 0 18px; }
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    button { border: 1px solid #d5ddd2; border-radius: 9px; padding: 9px 16px; cursor: pointer; background: #fff; color: #263e30; font-weight: 600; font-size: 14px; }
+    button:hover { background: #eff3ed; }
+    button.primary { color: white; background: #284c3f; border-color: #284c3f; }
+    button.primary:hover { background: #1c3c30; }
+    button:disabled { cursor: wait; opacity: .5; }
+    .explain { color: #707c72; font-size: 12px; margin: 12px 0 0; }
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 30px; }
+    .examples button { font-size: 12px; font-weight: 400; padding: 5px 10px; background: transparent; }
+    .status { min-height: 24px; margin: 16px 0 0; color: #47604f; font-size: 13px; }
+    .status.error { color: #a53535; }
+    .status.working::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border: 2px solid #c4d7c8; border-top-color: #284c3f; border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .entry { background: #fff; border: 1px solid #dfe4dc; border-radius: 14px; margin-bottom: 16px; overflow: hidden; }
+    .entry-head { padding: 16px 20px; background: #eef2eb; }
+    .entry-meta { font-size: 11px; color: #647363; text-transform: uppercase; letter-spacing: .5px; }
+    .entry-prompt { white-space: pre-wrap; margin: 6px 0 0; font-size: 14px; }
+    pre { margin: 0; padding: 20px; font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .empty { color: #7c857c; text-align: center; padding: 12px; font-size: 13px; }
+    @media (max-width: 550px) { main { margin-top: 24px; padding: 0 16px; } .panel { padding: 18px; } .model-row { align-items: flex-start; flex-direction: column; } .badge { display: none; } }
+    @media (prefers-reduced-motion: reduce) { .status.working::before { animation: none; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><div class="mark" aria-hidden="true">t</div><div><h1>TinyAgent</h1><p class="subtitle">Your local Mac assistant</p></div><span class="badge">Runs on your Mac</span></header>
+  <section class="panel" aria-label="New task">
+    <div class="model-row"><label for="model">Model</label><select id="model"><option value="7b">TinyAgent 7B · 4-bit</option><option value="1.1b">TinyAgent 1.1B · 4-bit</option><option value="1.1b-f16">TinyAgent 1.1B · 16-bit</option></select></div>
+    <label for="prompt">What would you like to do?</label>
+    <textarea id="prompt" placeholder="Create a reminder to rehearse my presentation tomorrow at 9 AM." maxlength="16000"></textarea>
+    <p class="hint">Notes, Reminders, Files/PDFs, Contacts, Maps, and Mail drafts are enabled. Each prompt starts a new task.</p>
+    <div class="actions"><button id="preview">Preview plan</button><button id="execute" class="primary">Run with tools</button></div>
+    <p class="explain">Preview shows the proposed steps. Run with tools makes changes in your Mac apps.</p>
+    <p id="status" class="status" role="status" aria-live="polite">Ready. A model loads when you send a prompt.</p>
+  </section>
+  <div class="examples" aria-label="Example prompts"><button data-example="reminder">Try a reminder</button><button data-example="checklist">Notes → checklist</button><button data-example="pdf">PDF → summary + reminder</button><button data-example="outing">Directions → email draft</button></div>
+  <section id="history" aria-label="Task results"><p id="empty" class="empty">Your plans and tool results will appear here.</p></section>
+</main>
+<script>
+  const model = document.querySelector('#model');
+  const prompt = document.querySelector('#prompt');
+  const status = document.querySelector('#status');
+  const history = document.querySelector('#history');
+  const buttons = [...document.querySelectorAll('button')];
+  let busy = false;
+  let demoFiles = {};
+  model.value = localStorage.getItem('tinyagent-model') || '7b';
+  if (!model.value) model.value = '7b';
+  model.addEventListener('change', () => localStorage.setItem('tinyagent-model', model.value));
+  function setStatus(text, kind = '') { status.textContent = text; status.className = 'status ' + kind; }
+  function setBusy(value) { busy = value; buttons.forEach(button => button.disabled = value); model.disabled = value; }
+  document.querySelectorAll('[data-example]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.example === 'reminder') {
+      prompt.value = 'Create a reminder titled Rehearse my presentation for tomorrow at 9 AM.';
+    } else if (button.dataset.example === 'checklist') {
+      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      const title = 'Preparation checklist ' + time;
+      prompt.value = `Open Demo brief from the TinyAgent Demo folder. Use the returned text to create a concise preparation checklist in a new note named ${title} in that folder. Then open the new checklist note and use its contents as the notes of a reminder titled Review ${title}, due tomorrow at 9 AM.`;
+    } else if (button.dataset.example === 'pdf') {
+      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+      prompt.value = `Open ${demoFiles.workshop || 'Workshop brief.pdf'}, summarize it into a note called Workshop summary ${time} in the TinyAgent Demo folder, and remind me tomorrow at 9 AM to review it. Include the summary in the reminder.`;
+    } else if (button.dataset.example === 'outing') {
+      prompt.value = `Find Alex Demo's email address in Contacts. Get walking directions from Berlin Hauptbahnhof to Museum Island. Draft an email to Alex with the directions link and attach ${demoFiles.itinerary || 'Museum itinerary.pdf'}.`;
+    }
+    prompt.focus();
+  }));
+  async function send(mode) {
+    if (busy) return;
+    const text = prompt.value.trim();
+    if (!text) { prompt.focus(); setStatus('Enter a prompt first.'); return; }
+    setBusy(true); setStatus('Connecting…', 'working');
+    document.querySelector('#empty')?.remove();
+    const entry = document.createElement('article'); entry.className = 'entry';
+    const head = document.createElement('div'); head.className = 'entry-head';
+    const meta = document.createElement('div'); meta.className = 'entry-meta';
+    meta.textContent = model.options[model.selectedIndex].text + ' / ' + (mode === 'preview' ? 'Plan preview' : 'Live tools');
+    const requestText = document.createElement('p'); requestText.className = 'entry-prompt'; requestText.textContent = text;
+    const output = document.createElement('pre'); output.textContent = '';
+    head.append(meta, requestText); entry.append(head, output); history.prepend(entry);
+    let failed = false, completed = false;
+    function receive(event) {
+      if (event.type === 'status') setStatus(event.text, 'working');
+      if (event.type === 'output') output.textContent += event.text;
+      if (event.type === 'error') { failed = true; output.textContent += '\n' + event.text + '\n'; setStatus(event.text, 'error'); }
+      if (event.type === 'done') {
+        completed = true;
+        if (!failed) setStatus(event.ok ? (mode === 'preview' ? 'Plan ready. No tools were executed.' : 'Agent finished. Review the tool results below.') : 'The task did not complete.', event.ok ? '' : 'error');
+      }
+    }
+    try {
+      const response = await fetch('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({model: model.value, prompt: text, mode})});
+      if (!response.ok) { const data = await response.json(); throw new Error(typeof data.detail === 'string' ? data.detail : 'The request could not be started.'); }
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let pending = '';
+      while (true) {
+        const {done, value} = await reader.read();
+        pending += decoder.decode(value || new Uint8Array(), {stream: !done});
+        const lines = pending.split('\n'); pending = lines.pop();
+        lines.filter(Boolean).forEach(line => receive(JSON.parse(line)));
+        if (done) break;
+      }
+      if (pending.trim()) receive(JSON.parse(pending));
+      if (!completed) throw new Error('Connection interrupted. Check your apps before retrying; some actions may have completed.');
+    } catch (error) { output.textContent += '\n' + error.message; setStatus(error.message, 'error'); }
+    finally { setBusy(false); }
+  }
+  document.querySelector('#preview').addEventListener('click', () => send('preview'));
+  document.querySelector('#execute').addEventListener('click', () => send('execute'));
+  prompt.addEventListener('keydown', event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send('preview'); } });
+  fetch('/api/status').then(r => r.json()).then(data => { demoFiles = data.demo_files || {}; if (data.busy) setStatus('Another task is running. Wait for it to finish before sending a prompt.'); }).catch(() => setStatus('The app is not running. Open Start TinyAgent.command to start it.', 'error'));
+</script>
+</body>
+</html>

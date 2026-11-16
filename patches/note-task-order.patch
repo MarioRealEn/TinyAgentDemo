@@ -1,0 +1,29 @@
+diff --git a/src/llm_compiler/task_fetching_unit.py b/src/llm_compiler/task_fetching_unit.py
+index e58622b..c464f09 100644
+--- a/src/llm_compiler/task_fetching_unit.py
++++ b/src/llm_compiler/task_fetching_unit.py
+@@ -90,6 +90,24 @@ class TaskFetchingUnit:
+         self.remaining_tasks = set()
+ 
+     def set_tasks(self, tasks: dict[str, Any]):
++        # Note operations can share a resource without referencing its previous
++        # result: e.g. create_note("Checklist", ...) then open_note("Checklist", ...).
++        # Preserve that ordering in addition to the planner's explicit $id edges.
++        combined = {**self.tasks, **tasks}
++        def note_key(task):
++            if task.name in {"create_note", "append_note_content"} and len(task.args) >= 3:
++                return (task.args[0], task.args[2] or "Notes")
++            if task.name == "open_note" and len(task.args) >= 2:
++                return (task.args[0], task.args[1] or "Notes")
++            return None
++        writers = {"create_note", "append_note_content"}
++        for task in tasks.values():
++            key = note_key(task)
++            if key is not None:
++                conflicts = [previous.idx for previous in combined.values()
++                    if previous.idx < task.idx and note_key(previous) == key
++                    and (previous.name in writers or task.name in writers)]
++                task.dependencies = sorted(set(task.dependencies) | set(conflicts))
+         self.tasks.update(tasks)
+         self.tasks_done.update({task_idx: asyncio.Event() for task_idx in tasks})
+         self.remaining_tasks.update(set(tasks.keys()))

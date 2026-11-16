@@ -1,0 +1,53 @@
+diff --git a/src/llm_compiler/output_parser.py b/src/llm_compiler/output_parser.py
+index d2b1fbb..8eb62d3 100644
+--- a/src/llm_compiler/output_parser.py
++++ b/src/llm_compiler/output_parser.py
+@@ -1,4 +1,5 @@
+ import ast
++import inspect
+ import re
+ from typing import Any, Sequence, Union
+ 
+@@ -36,12 +37,24 @@ class LLMCompilerPlanParser(AgentOutputParser, extra="allow"):
+         matches = re.findall(pattern, text)
+ 
+         graph_dict = {}
++        if not matches:
++            raise OutputParserException("Invalid model plan: no tool calls were generated.")
+ 
+-        for match in matches:
++        for position, match in enumerate(matches, 1):
+             # idx = 1, function = "search", args = "Ronaldo number of kids"
+             # thought will be the preceding thought, if any, otherwise an empty string
+             thought, idx, tool_name, args, _ = match
+             idx = int(idx)
++            if idx != position:
++                raise OutputParserException(
++                    f"Invalid model plan: expected action {position}, got {idx}. "
++                    "Actions must start at 1 and have consecutive IDs. This plan was not executed."
++                )
++            references = {int(value) for value in re.findall(ID_PATTERN, args)}
++            if any(reference not in graph_dict for reference in references):
++                raise OutputParserException(
++                    f"Invalid model plan: action {idx} references a missing or future action."
++                )
+ 
+             task = instantiate_task(
+                 tools=self.tools,
+@@ -53,8 +66,16 @@ class LLMCompilerPlanParser(AgentOutputParser, extra="allow"):
+ 
+             graph_dict[idx] = task
+             if task.is_join:
++                if position != len(matches):
++                    raise OutputParserException("Invalid model plan: join() must be the last action.")
+                 break
++            try:
++                inspect.signature(task.tool).bind(*task.args)
++            except TypeError as error:
++                raise OutputParserException(f"Invalid model plan: wrong arguments for {task.name}: {error}") from error
+ 
++        if not graph_dict or not next(reversed(graph_dict.values())).is_join:
++            raise OutputParserException("Invalid model plan: the final join() action is missing.")
+         return graph_dict
+ 
+ 

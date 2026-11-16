@@ -1,0 +1,21 @@
+# Downloaded models and model weights, wherever they are saved
+models/
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.onnx
+pytorch_model*.bin
+model*.bin
+
+# Local environments, dependencies, logs, and caches
+.venv/
+.tools/
+vendor/
+runtime/
+.cache/huggingface/
+.huggingface/
+__pycache__/
+*.pyc
+.DS_Store
